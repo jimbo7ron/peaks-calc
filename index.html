@@ -80,6 +80,48 @@
             </div>
         </section>
 
+        <section class="assumptions">
+            <h2>Assumptions & Methodology</h2>
+            
+            <h3>Climbing Speed</h3>
+            <p>Based on power-to-weight physics: <code>Speed = Power × 0.92 ÷ (Weight × 9.81 × (Gradient + 0.004))</code></p>
+            <ul>
+                <li><strong>8% drivetrain losses</strong> — accounts for chain, bearings, tyre deformation</li>
+                <li><strong>Rolling resistance (Crr)</strong> — 0.004 (typical road tyres on good tarmac)</li>
+                <li><strong>Gradient</strong> — uses average gradient per segment (doesn't model steep sections within)</li>
+            </ul>
+
+            <h3>Flat & Descent Speed</h3>
+            <ul>
+                <li><strong>Flats:</strong> ~32 km/h baseline at 180W, scales with power (cube root relationship)</li>
+                <li><strong>Descents:</strong> Conservative 38-50 km/h depending on gradient (safety-limited, not power-limited)</li>
+            </ul>
+
+            <h3>W/kg Calculation</h3>
+            <p>Rider weight estimated as <strong>system weight minus 10kg</strong> (bike ~8kg + shoes, bottles, spares ~2kg)</p>
+
+            <h3>Segment Data</h3>
+            <p>Distances and elevations from official Peaks Challenge route. Average gradients calculated from total elevation ÷ distance.</p>
+            <table class="data-table">
+                <tr><th>Segment</th><th>Distance</th><th>Elevation</th><th>Avg Gradient</th></tr>
+                <tr><td>Tawonga Gap</td><td>7.5 km</td><td>+476 m</td><td>6.3%</td></tr>
+                <tr><td>Mt Hotham</td><td>29.9 km</td><td>+1,303 m</td><td>4.4%</td></tr>
+                <tr><td>Bingo Gap</td><td>8 km</td><td>+180 m</td><td>2.3%</td></tr>
+                <tr><td>Back of Falls</td><td>22.6 km</td><td>+980 m</td><td>4.3%</td></tr>
+            </table>
+
+            <h3>What's NOT Modelled</h3>
+            <ul>
+                <li><strong>Fatigue</strong> — you'll go slower on later climbs; adjust "Climbing Power" to your expected average</li>
+                <li><strong>Weather</strong> — wind, heat, rain all affect times significantly</li>
+                <li><strong>Drafting</strong> — group riding on flats can be faster than modelled</li>
+                <li><strong>Steep sections</strong> — WTF Corner (17%) and other steep ramps within segments</li>
+            </ul>
+
+            <h3>Calibration</h3>
+            <p>Model validated against actual 2025 Peaks Challenge finish data. At 210W climbing / 170W flat / 82kg system weight, predicts 8:31 vs actual 8:34 (3 min difference).</p>
+        </section>
+
         <footer>
             <p>Built for Peaks Challenge March 2026 🏔️</p>
             <p class="disclaimer">Estimates only. Actual times depend on conditions, pacing, nutrition, and many other factors.</p>
