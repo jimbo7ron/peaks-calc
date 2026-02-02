@@ -1,13 +1,16 @@
 // Peaks Challenge Falls Creek - Course Segments
 // Based on official route: 235km, 4,400m+ elevation
+// Validated against actual results from 2024 event and cycling-inform benchmarks
+
 const SEGMENTS = [
     {
         id: 'descent-start',
         name: 'Falls Creek → Mt Beauty',
         distance: 30,
-        elevation: -900,  // descent
+        elevation: -900,
         type: 'descent',
-        avgGradient: -3.0
+        avgGradient: -3.0,
+        cumulativeKm: 30
     },
     {
         id: 'tawonga-gap',
@@ -15,15 +18,18 @@ const SEGMENTS = [
         distance: 7.5,
         elevation: 476,
         type: 'climb',
-        avgGradient: 6.3
+        avgGradient: 6.3,
+        cumulativeKm: 37.5,
+        benchmark: { min: 28, max: 35, unit: 'min' }  // Cycling-Inform data
     },
     {
         id: 'descent-germantown',
-        name: 'Tawonga Gap → Harrietville',
+        name: 'Tawonga → Harrietville',
         distance: 32.5,
         elevation: -350,
         type: 'descent',
-        avgGradient: -1.1
+        avgGradient: -1.1,
+        cumulativeKm: 70
     },
     {
         id: 'mt-hotham',
@@ -31,7 +37,9 @@ const SEGMENTS = [
         distance: 29.9,
         elevation: 1303,
         type: 'climb',
-        avgGradient: 4.4
+        avgGradient: 4.4,
+        cumulativeKm: 100,
+        benchmark: { min: 100, max: 140, unit: 'min' }  // 1:40 - 2:20
     },
     {
         id: 'hotham-omeo',
@@ -39,7 +47,9 @@ const SEGMENTS = [
         distance: 50,
         elevation: -800,
         type: 'descent',
-        avgGradient: -1.6
+        avgGradient: -1.6,
+        cumulativeKm: 150,
+        notes: 'Includes short steep pinches'
     },
     {
         id: 'bingo-gap',
@@ -47,50 +57,81 @@ const SEGMENTS = [
         distance: 8,
         elevation: 180,
         type: 'climb',
-        avgGradient: 2.3
+        avgGradient: 2.3,
+        cumulativeKm: 158
     },
     {
         id: 'anglers-rest',
         name: 'Omeo → Anglers Rest',
-        distance: 25,
-        elevation: -300,
+        distance: 30,
+        elevation: -200,
         type: 'flat',
-        avgGradient: -1.2
+        avgGradient: -0.7,
+        cumulativeKm: 188
     },
     {
-        id: 'back-of-falls',
-        name: 'Back of Falls Creek (HC)',
-        distance: 22.6,
-        elevation: 980,
+        id: 'back-of-falls-steep',
+        name: 'Back of Falls (Steep)',
+        distance: 9,
+        elevation: 540,  // ~60% of total elevation in first 40% of distance
         type: 'climb',
-        avgGradient: 4.3,
-        notes: 'First 9km avg 10%!'
+        avgGradient: 6.0,  // First 9km averages closer to 6% with 10%+ sections
+        cumulativeKm: 197,
+        notes: 'Includes WTF Corner (17%!)'
+    },
+    {
+        id: 'back-of-falls-upper',
+        name: 'Back of Falls (Upper)',
+        distance: 13.6,
+        elevation: 440,
+        type: 'climb',
+        avgGradient: 3.2,
+        cumulativeKm: 210.6,
+        benchmark: { min: 120, max: 165, unit: 'min', combined: 'back-of-falls-steep' }  // 2:00 - 2:45 for whole climb
     },
     {
         id: 'plateau-finish',
         name: 'Plateau → Finish',
-        distance: 12,
+        distance: 24.4,
         elevation: -100,
         type: 'flat',
-        avgGradient: -0.8
+        avgGradient: -0.4,
+        cumulativeKm: 235
     }
 ];
 
 // Physical constants
 const GRAVITY = 9.81; // m/s²
-const AIR_DENSITY = 1.1; // kg/m³ (alpine, slightly lower)
-const CDA = 0.35; // drag coefficient * frontal area (drops position)
+const AIR_DENSITY = 1.05; // kg/m³ (alpine altitude, ~1500m avg)
+const CDA = 0.35; // drag coefficient * frontal area (hoods/drops)
 const CRR = 0.004; // rolling resistance coefficient
+
+// Fatigue model - power degrades as ride progresses
+// Based on real data: riders doing 80-100W at end when they started at 200W+
+function getFatigueFactor(cumulativeKm, fatigueResistance) {
+    // fatigueResistance: 0 = severe fatigue, 100 = minimal fatigue
+    // At 200km with low resistance, power drops to ~50%
+    // At 200km with high resistance, power drops to ~85%
+    
+    const baseDegradation = 0.0015; // per km at 0 resistance
+    const resistanceEffect = fatigueResistance / 100; // 0-1
+    const adjustedDegradation = baseDegradation * (1 - resistanceEffect * 0.7);
+    
+    const fatigue = 1 - (cumulativeKm * adjustedDegradation);
+    return Math.max(fatigue, 0.4); // Floor at 40% power
+}
 
 // DOM Elements
 const ftpSlider = document.getElementById('ftp');
 const weightSlider = document.getElementById('weight');
 const intensitySlider = document.getElementById('intensity');
+const fatigueSlider = document.getElementById('fatigue');
 const stopsSlider = document.getElementById('stops');
 
 const ftpValue = document.getElementById('ftp-value');
 const weightValue = document.getElementById('weight-value');
 const intensityValue = document.getElementById('intensity-value');
+const fatigueValue = document.getElementById('fatigue-value');
 const stopsValue = document.getElementById('stops-value');
 
 const totalTimeEl = document.getElementById('total-time');
@@ -111,42 +152,38 @@ let backtestEnabled = false;
 function calculateSpeed(powerWatts, weightKg, gradientPercent) {
     const gradient = gradientPercent / 100;
     
-    // For climbs: use simplified power-based calculation
-    // Power = (gravity * weight * gradient + rolling resistance + aero drag) * velocity
-    // Simplified for climbing: aero drag is minimal
-    
     if (gradientPercent > 2) {
-        // Climbing - aero drag minimal, gravity dominant
-        // v = P / (m * g * (sin(θ) + Crr))
-        // sin(θ) ≈ gradient for small angles
+        // Climbing - gravity dominant
+        // v = P / (m * g * (gradient + Crr))
         const resistanceForce = weightKg * GRAVITY * (gradient + CRR);
         const speedMs = powerWatts / resistanceForce;
-        return Math.max(speedMs * 3.6, 5); // Convert to km/h, minimum 5 km/h
+        return Math.max(speedMs * 3.6, 4); // Convert to km/h, minimum 4 km/h
     } else if (gradientPercent < -2) {
-        // Descending - limited by safety/skill, not power
-        // Steeper = faster, but capped
-        const baseSpeed = 45; // km/h base descent speed
-        const gradientBonus = Math.min(Math.abs(gradientPercent) * 3, 20);
-        return Math.min(baseSpeed + gradientBonus, 70); // Cap at 70 km/h
+        // Descending - limited by safety/skill
+        const baseSpeed = 42; // km/h base descent speed (conservative)
+        const gradientBonus = Math.min(Math.abs(gradientPercent) * 4, 23);
+        return Math.min(baseSpeed + gradientBonus, 65); // Cap at 65 km/h
     } else {
-        // Flat/rolling - balanced equation
-        // Simplified: use a power-to-speed curve for flat terrain
-        // At 250W, ~38 km/h on flat (typical)
+        // Flat/rolling - aero equation
         const flatSpeed = Math.pow(powerWatts / (0.5 * AIR_DENSITY * CDA), 1/3) * 3.6;
-        // Adjust slightly for gradient
-        const gradientAdjust = gradientPercent * -1.5; // km/h per % gradient
-        return Math.max(flatSpeed + gradientAdjust, 20);
+        const gradientAdjust = gradientPercent * -2; // km/h per % gradient
+        return Math.max(flatSpeed + gradientAdjust, 25);
     }
 }
 
-// Calculate segment time
-function calculateSegmentTime(segment, powerWatts, weightKg) {
-    const speed = calculateSpeed(powerWatts, weightKg, segment.avgGradient);
+// Calculate segment time with fatigue
+function calculateSegmentTime(segment, basePowerWatts, weightKg, fatigueResistance) {
+    const fatigueFactor = getFatigueFactor(segment.cumulativeKm, fatigueResistance);
+    const effectivePower = basePowerWatts * fatigueFactor;
+    const speed = calculateSpeed(effectivePower, weightKg, segment.avgGradient);
     const timeHours = segment.distance / speed;
+    
     return {
         speed: speed,
         timeHours: timeHours,
-        timeSeconds: timeHours * 3600
+        timeSeconds: timeHours * 3600,
+        effectivePower: effectivePower,
+        fatigueFactor: fatigueFactor
     };
 }
 
@@ -172,6 +209,7 @@ function calculate() {
     const ftp = parseInt(ftpSlider.value);
     const weight = parseFloat(weightSlider.value);
     const intensity = parseInt(intensitySlider.value) / 100;
+    const fatigueResistance = parseInt(fatigueSlider.value);
     const stopsMinutes = parseInt(stopsSlider.value);
     
     const climbingPower = ftp * intensity;
@@ -187,7 +225,7 @@ function calculate() {
     segmentRowsEl.innerHTML = '';
     
     SEGMENTS.forEach(segment => {
-        const result = calculateSegmentTime(segment, climbingPower, weight);
+        const result = calculateSegmentTime(segment, climbingPower, weight, fatigueResistance);
         cumulativeTime += result.timeHours;
         
         segmentResults.push({
@@ -199,8 +237,14 @@ function calculate() {
         // Create row
         const row = document.createElement('div');
         row.className = 'segment-row';
+        
+        // Show fatigue % for climbs
+        const fatigueIndicator = segment.type === 'climb' 
+            ? ` <span class="fatigue-indicator">(${Math.round(result.fatigueFactor * 100)}%)</span>` 
+            : '';
+        
         row.innerHTML = `
-            <span class="${segment.type}">${segment.name}</span>
+            <span class="${segment.type}">${segment.name}${fatigueIndicator}</span>
             <span>${segment.distance} km</span>
             <span>${segment.elevation > 0 ? '+' : ''}${segment.elevation} m</span>
             <span>${result.speed.toFixed(1)} km/h</span>
@@ -240,6 +284,7 @@ function updateDisplays() {
     ftpValue.textContent = ftpSlider.value;
     weightValue.textContent = weightSlider.value;
     intensityValue.textContent = intensitySlider.value;
+    fatigueValue.textContent = fatigueSlider.value;
     stopsValue.textContent = stopsSlider.value;
     calculate();
 }
@@ -342,7 +387,7 @@ function runBacktest() {
         // Suggestions
         analysis += '<p style="margin-top: 1rem; font-size: 0.85rem; color: var(--text-muted)">';
         if (overallPercent > 10) {
-            analysis += '⚠️ Model is optimistic. Consider reducing intensity % or FTP input.';
+            analysis += '⚠️ Model is optimistic. Try lowering fatigue resistance or intensity.';
         } else if (overallPercent < -10) {
             analysis += '✨ Model is conservative. You may be faster than predicted!';
         } else {
@@ -359,6 +404,7 @@ function runBacktest() {
 ftpSlider.addEventListener('input', updateDisplays);
 weightSlider.addEventListener('input', updateDisplays);
 intensitySlider.addEventListener('input', updateDisplays);
+fatigueSlider.addEventListener('input', updateDisplays);
 stopsSlider.addEventListener('input', updateDisplays);
 
 toggleBacktestBtn.addEventListener('click', () => {
@@ -384,5 +430,6 @@ const params = new URLSearchParams(window.location.search);
 if (params.has('ftp')) ftpSlider.value = params.get('ftp');
 if (params.has('weight')) weightSlider.value = params.get('weight');
 if (params.has('intensity')) intensitySlider.value = params.get('intensity');
+if (params.has('fatigue')) fatigueSlider.value = params.get('fatigue');
 if (params.has('stops')) stopsSlider.value = params.get('stops');
 updateDisplays();

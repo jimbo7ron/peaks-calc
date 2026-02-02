@@ -41,6 +41,15 @@
             </div>
 
             <div class="input-group">
+                <label for="fatigue">Fatigue Resistance (training level)</label>
+                <div class="dial-container">
+                    <input type="range" id="fatigue" min="0" max="100" value="50" class="dial">
+                    <div class="dial-value"><span id="fatigue-value">50</span>%</div>
+                </div>
+                <small class="input-hint">0 = untrained, 100 = elite endurance</small>
+            </div>
+
+            <div class="input-group">
                 <label for="stops">Rest Stop Time (total)</label>
                 <div class="dial-container">
                     <input type="range" id="stops" min="0" max="60" value="20" class="dial">

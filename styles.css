@@ -221,6 +221,18 @@ section h2 {
     color: var(--text-muted);
 }
 
+.fatigue-indicator {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: normal;
+}
+
+.input-hint {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+}
+
 /* Backtest Section */
 .backtest-info {
     color: var(--text-muted);
