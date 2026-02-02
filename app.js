@@ -73,9 +73,9 @@ const SEGMENTS = [
         id: 'back-of-falls-steep',
         name: 'Back of Falls (Steep)',
         distance: 9,
-        elevation: 540,  // ~60% of total elevation in first 40% of distance
+        elevation: 630,  // Steeper first section - adjusted based on real times
         type: 'climb',
-        avgGradient: 6.0,  // First 9km averages closer to 6% with 10%+ sections
+        avgGradient: 7.0,  // First 9km averages ~7% with 10-17% sections
         cumulativeKm: 197,
         notes: 'Includes WTF Corner (17%!)'
     },
@@ -83,11 +83,11 @@ const SEGMENTS = [
         id: 'back-of-falls-upper',
         name: 'Back of Falls (Upper)',
         distance: 13.6,
-        elevation: 440,
+        elevation: 350,
         type: 'climb',
-        avgGradient: 3.2,
+        avgGradient: 2.6,  // Easier upper section to Trapyard Gap and beyond
         cumulativeKm: 210.6,
-        benchmark: { min: 120, max: 165, unit: 'min', combined: 'back-of-falls-steep' }  // 2:00 - 2:45 for whole climb
+        benchmark: { min: 94, max: 165, unit: 'min', combined: 'back-of-falls-steep' }  // Your time: 1:34
     },
     {
         id: 'plateau-finish',
@@ -107,18 +107,18 @@ const CDA = 0.35; // drag coefficient * frontal area (hoods/drops)
 const CRR = 0.004; // rolling resistance coefficient
 
 // Fatigue model - power degrades as ride progresses
-// Based on real data: riders doing 80-100W at end when they started at 200W+
+// Calibrated against 2025 data: VAM dropped from 1058 to 626 m/hr (60% of start)
 function getFatigueFactor(cumulativeKm, fatigueResistance) {
-    // fatigueResistance: 0 = severe fatigue, 100 = minimal fatigue
-    // At 200km with low resistance, power drops to ~50%
-    // At 200km with high resistance, power drops to ~85%
+    // fatigueResistance: 0 = severe fatigue, 100 = elite endurance
+    // At 200km with 70% resistance (good training), power ~60% of start
+    // At 200km with 0% resistance, power ~40% of start
     
-    const baseDegradation = 0.0015; // per km at 0 resistance
+    const baseDegradation = 0.002; // per km at 0 resistance (more aggressive)
     const resistanceEffect = fatigueResistance / 100; // 0-1
-    const adjustedDegradation = baseDegradation * (1 - resistanceEffect * 0.7);
+    const adjustedDegradation = baseDegradation * (1 - resistanceEffect * 0.65);
     
     const fatigue = 1 - (cumulativeKm * adjustedDegradation);
-    return Math.max(fatigue, 0.4); // Floor at 40% power
+    return Math.max(fatigue, 0.35); // Floor at 35% power (severe bonk)
 }
 
 // DOM Elements
