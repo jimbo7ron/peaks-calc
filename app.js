@@ -149,7 +149,8 @@ const backtestResultsEl = document.getElementById('backtest-results');
 let backtestEnabled = false;
 
 // Calculate speed for a segment based on power and gradient
-function calculateSpeed(powerWatts, weightKg, gradientPercent) {
+// Calibrated against actual 2025 Peaks data
+function calculateSpeed(powerWatts, weightKg, gradientPercent, cumulativeKm = 0) {
     const gradient = gradientPercent / 100;
     
     if (gradientPercent > 2) {
@@ -158,16 +159,24 @@ function calculateSpeed(powerWatts, weightKg, gradientPercent) {
         const resistanceForce = weightKg * GRAVITY * (gradient + CRR);
         const speedMs = powerWatts / resistanceForce;
         return Math.max(speedMs * 3.6, 4); // Convert to km/h, minimum 4 km/h
-    } else if (gradientPercent < -2) {
-        // Descending - limited by safety/skill
-        const baseSpeed = 42; // km/h base descent speed (conservative)
-        const gradientBonus = Math.min(Math.abs(gradientPercent) * 4, 23);
-        return Math.min(baseSpeed + gradientBonus, 65); // Cap at 65 km/h
+    } else if (gradientPercent < -1.5) {
+        // Descending - much more conservative based on real data
+        // Real descent averages are ~35-45 km/h, not 50-65
+        const baseSpeed = 35; // km/h base descent speed
+        const gradientBonus = Math.min(Math.abs(gradientPercent) * 3, 15);
+        // Fatigue slows descents too (less aggressive braking, more caution)
+        const fatiguePenalty = cumulativeKm > 100 ? (cumulativeKm - 100) * 0.03 : 0;
+        return Math.min(baseSpeed + gradientBonus - fatiguePenalty, 50);
     } else {
-        // Flat/rolling - aero equation
-        const flatSpeed = Math.pow(powerWatts / (0.5 * AIR_DENSITY * CDA), 1/3) * 3.6;
-        const gradientAdjust = gradientPercent * -2; // km/h per % gradient
-        return Math.max(flatSpeed + gradientAdjust, 25);
+        // Flat/rolling - much slower than pure physics due to:
+        // - Group dynamics, drafting inefficiency
+        // - Micro-stops, intersections
+        // - Mental fatigue
+        // Real data: 132km of flats/descents in 5:01 = 26.4 km/h avg
+        const baseFlatSpeed = 30; // km/h realistic flat cruising
+        const powerBonus = (powerWatts - 150) * 0.03; // Small bonus for higher power
+        const gradientAdjust = gradientPercent * -1.5;
+        return Math.max(baseFlatSpeed + powerBonus + gradientAdjust, 22);
     }
 }
 
@@ -175,7 +184,7 @@ function calculateSpeed(powerWatts, weightKg, gradientPercent) {
 function calculateSegmentTime(segment, basePowerWatts, weightKg, fatigueResistance) {
     const fatigueFactor = getFatigueFactor(segment.cumulativeKm, fatigueResistance);
     const effectivePower = basePowerWatts * fatigueFactor;
-    const speed = calculateSpeed(effectivePower, weightKg, segment.avgGradient);
+    const speed = calculateSpeed(effectivePower, weightKg, segment.avgGradient, segment.cumulativeKm);
     const timeHours = segment.distance / speed;
     
     return {
