@@ -27,6 +27,8 @@ const climbPowerValue = document.getElementById('climb-power-value');
 const flatPowerValue = document.getElementById('flat-power-value');
 const weightValue = document.getElementById('weight-value');
 const stopsValue = document.getElementById('stops-value');
+const climbWkgValue = document.getElementById('climb-wkg');
+const flatWkgValue = document.getElementById('flat-wkg');
 
 const totalTimeEl = document.getElementById('total-time');
 const timeMarginEl = document.getElementById('time-margin');
@@ -148,6 +150,12 @@ function updateDisplays() {
     flatPowerValue.textContent = flatPowerSlider.value;
     weightValue.textContent = weightSlider.value;
     stopsValue.textContent = stopsSlider.value;
+    
+    // Calculate W/kg (estimate rider weight as system - 10kg for bike/gear)
+    const riderWeight = parseFloat(weightSlider.value) - 10;
+    climbWkgValue.textContent = (parseInt(climbPowerSlider.value) / riderWeight).toFixed(2);
+    flatWkgValue.textContent = (parseInt(flatPowerSlider.value) / riderWeight).toFixed(2);
+    
     calculate();
 }
 

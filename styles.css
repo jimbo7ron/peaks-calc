@@ -233,6 +233,11 @@ section h2 {
     margin-top: 0.25rem;
 }
 
+.wkg {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
 /* Backtest Section */
 .backtest-info {
     color: var(--text-muted);
