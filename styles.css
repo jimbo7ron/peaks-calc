@@ -392,6 +392,191 @@ footer {
     font-size: 0.75rem;
 }
 
+/* Strava Import */
+.strava-import {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.strava-button {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.25rem;
+    background: #fc4c02;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.strava-button:hover {
+    background: #e34402;
+    transform: translateY(-1px);
+}
+
+.strava-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.strava-button svg {
+    flex-shrink: 0;
+}
+
+.strava-status {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.strava-status.success {
+    color: var(--success);
+}
+
+.strava-status.error {
+    color: var(--danger);
+}
+
+.strava-status.loading {
+    color: var(--warning);
+}
+
+/* Modal */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 1rem;
+}
+
+.modal.hidden {
+    display: none;
+}
+
+.modal-content {
+    background: var(--bg-card);
+    border-radius: 12px;
+    padding: 1.5rem;
+    max-width: 480px;
+    width: 100%;
+}
+
+.modal-content h3 {
+    margin-bottom: 1rem;
+    font-size: 1.25rem;
+}
+
+.modal-content p {
+    color: var(--text-muted);
+    margin-bottom: 0.75rem;
+    font-size: 0.9rem;
+}
+
+.modal-hint {
+    font-size: 0.85rem !important;
+    margin-bottom: 1rem !important;
+}
+
+.modal-hint a {
+    color: var(--primary);
+}
+
+.modal-content input[type="text"] {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 0.95rem;
+    margin-bottom: 1rem;
+}
+
+.modal-content input[type="text"]:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+.modal-buttons {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+}
+
+.btn-secondary {
+    padding: 0.6rem 1.25rem;
+    background: var(--bg-input);
+    color: var(--text);
+    border: none;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-secondary:hover {
+    background: var(--border);
+}
+
+.btn-primary {
+    padding: 0.6rem 1.25rem;
+    background: #fc4c02;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-primary:hover {
+    background: #e34402;
+}
+
+/* Strava Power Breakdown */
+.strava-breakdown {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: var(--bg);
+    border-radius: 8px;
+    font-size: 0.85rem;
+}
+
+.strava-breakdown h4 {
+    font-size: 0.9rem;
+    margin-bottom: 0.75rem;
+    color: var(--text);
+}
+
+.strava-breakdown-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.strava-breakdown-row:last-child {
+    border-bottom: none;
+    font-weight: 600;
+    color: #fc4c02;
+}
+
 /* Responsive */
 @media (max-width: 600px) {
     .segment-header,

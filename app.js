@@ -1,6 +1,13 @@
 // Peaks Challenge Falls Creek - Course Segments
 // 235km, 4,400m+ elevation
 
+// Strava Segment IDs for the three main climbs
+const STRAVA_SEGMENTS = {
+    tawonga: { id: 634373, name: 'Tawonga Gap', weight: 0.15 },      // 7.5km - shortest, freshest legs
+    hotham: { id: 610370, name: 'Mt Hotham', weight: 0.45 },         // 30km - longest, mid-ride
+    falls: { id: 639129, name: 'Back of Falls', weight: 0.40 }       // 22km - final climb, fatigued
+};
+
 const SEGMENTS = [
     { id: 'descent-start', name: 'Falls Creek → Mt Beauty', distance: 30, elevation: -900, type: 'descent', avgGradient: -3.0 },
     { id: 'tawonga-gap', name: 'Tawonga Gap', distance: 7.5, elevation: 476, type: 'climb', avgGradient: 6.3 },
@@ -173,3 +180,201 @@ if (params.has('weight')) weightSlider.value = params.get('weight');
 if (params.has('stops')) stopsSlider.value = params.get('stops');
 
 updateDisplays();
+
+// ============================================
+// Strava Import
+// ============================================
+
+const stravaBtn = document.getElementById('strava-btn');
+const stravaModal = document.getElementById('strava-modal');
+const stravaToken = document.getElementById('strava-token');
+const stravaCancel = document.getElementById('strava-cancel');
+const stravaFetch = document.getElementById('strava-fetch');
+const stravaStatus = document.getElementById('strava-status');
+const stravaModalStatus = document.getElementById('strava-modal-status');
+
+// Check for stored token
+const storedToken = localStorage.getItem('strava_token');
+if (storedToken) {
+    stravaStatus.textContent = '✓ Strava connected';
+    stravaStatus.className = 'strava-status success';
+}
+
+stravaBtn.addEventListener('click', () => {
+    stravaModal.classList.remove('hidden');
+    stravaToken.value = storedToken || '';
+    stravaToken.focus();
+});
+
+stravaCancel.addEventListener('click', () => {
+    stravaModal.classList.add('hidden');
+    stravaModalStatus.textContent = '';
+});
+
+// Close modal on background click
+stravaModal.addEventListener('click', (e) => {
+    if (e.target === stravaModal) {
+        stravaModal.classList.add('hidden');
+        stravaModalStatus.textContent = '';
+    }
+});
+
+stravaFetch.addEventListener('click', async () => {
+    const token = stravaToken.value.trim();
+    if (!token) {
+        stravaModalStatus.textContent = 'Please enter your access token';
+        stravaModalStatus.className = 'strava-status error';
+        return;
+    }
+
+    stravaFetch.disabled = true;
+    stravaModalStatus.textContent = 'Fetching your segment efforts...';
+    stravaModalStatus.className = 'strava-status loading';
+
+    try {
+        const efforts = await fetchStravaEfforts(token);
+        
+        if (Object.keys(efforts).length === 0) {
+            stravaModalStatus.textContent = 'No efforts found for these climbs. Have you ridden them?';
+            stravaModalStatus.className = 'strava-status error';
+            stravaFetch.disabled = false;
+            return;
+        }
+
+        // Calculate weighted average climbing power
+        const result = calculateWeightedPower(efforts);
+        
+        // Update the slider
+        climbPowerSlider.value = Math.round(result.weightedPower);
+        updateDisplays();
+        
+        // Store token for future use
+        localStorage.setItem('strava_token', token);
+        
+        // Close modal and show success
+        stravaModal.classList.add('hidden');
+        stravaStatus.innerHTML = `✓ Imported: <strong>${Math.round(result.weightedPower)}W</strong> avg climbing power`;
+        stravaStatus.className = 'strava-status success';
+        
+        // Show breakdown
+        showStravaBreakdown(efforts, result);
+
+    } catch (error) {
+        console.error('Strava fetch error:', error);
+        stravaModalStatus.textContent = error.message || 'Failed to fetch from Strava';
+        stravaModalStatus.className = 'strava-status error';
+    }
+
+    stravaFetch.disabled = false;
+});
+
+// Use CORS proxy for browser requests (Strava API blocks direct browser access)
+// For production, replace with your own proxy endpoint
+const CORS_PROXY = 'https://corsproxy.io/?';
+
+async function fetchStravaEfforts(token) {
+    const efforts = {};
+    
+    for (const [key, segment] of Object.entries(STRAVA_SEGMENTS)) {
+        try {
+            const apiUrl = `https://www.strava.com/api/v3/segment_efforts?segment_id=${segment.id}&per_page=10`;
+            const response = await fetch(
+                CORS_PROXY + encodeURIComponent(apiUrl),
+                {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                }
+            );
+
+            if (response.status === 401) {
+                throw new Error('Invalid or expired token. Please get a new one from Strava.');
+            }
+
+            if (!response.ok) {
+                throw new Error(`Strava API error: ${response.status}`);
+            }
+
+            const data = await response.json();
+            
+            // Get best effort with power data
+            const effortsWithPower = data.filter(e => e.average_watts && e.average_watts > 0);
+            
+            if (effortsWithPower.length > 0) {
+                // Use best (highest power) effort
+                const bestEffort = effortsWithPower.reduce((best, e) => 
+                    e.average_watts > best.average_watts ? e : best
+                );
+                
+                efforts[key] = {
+                    name: segment.name,
+                    watts: bestEffort.average_watts,
+                    time: bestEffort.moving_time,
+                    date: bestEffort.start_date_local,
+                    weight: segment.weight
+                };
+            }
+        } catch (error) {
+            if (error.message.includes('token')) {
+                throw error;
+            }
+            console.warn(`Failed to fetch ${segment.name}:`, error);
+        }
+    }
+    
+    return efforts;
+}
+
+function calculateWeightedPower(efforts) {
+    let totalWeight = 0;
+    let weightedSum = 0;
+    
+    for (const effort of Object.values(efforts)) {
+        weightedSum += effort.watts * effort.weight;
+        totalWeight += effort.weight;
+    }
+    
+    // Normalize if we don't have all climbs
+    const weightedPower = totalWeight > 0 ? weightedSum / totalWeight : 0;
+    
+    return {
+        weightedPower,
+        efforts
+    };
+}
+
+function showStravaBreakdown(efforts, result) {
+    // Remove existing breakdown if any
+    const existing = document.querySelector('.strava-breakdown');
+    if (existing) existing.remove();
+    
+    // Create breakdown element
+    const breakdown = document.createElement('div');
+    breakdown.className = 'strava-breakdown';
+    
+    let html = '<h4>📊 Your Strava Data</h4>';
+    
+    for (const [key, effort] of Object.entries(efforts)) {
+        const date = new Date(effort.date).toLocaleDateString();
+        const time = formatTime(effort.time / 3600);
+        html += `
+            <div class="strava-breakdown-row">
+                <span>${effort.name}</span>
+                <span>${Math.round(effort.watts)}W (${time}) — ${date}</span>
+            </div>
+        `;
+    }
+    
+    html += `
+        <div class="strava-breakdown-row">
+            <span>Weighted Average</span>
+            <span>${Math.round(result.weightedPower)}W</span>
+        </div>
+    `;
+    
+    breakdown.innerHTML = html;
+    
+    // Insert after strava-import div
+    const stravaImport = document.querySelector('.strava-import');
+    stravaImport.after(breakdown);
+}
