@@ -182,16 +182,15 @@ if (params.has('stops')) stopsSlider.value = params.get('stops');
 updateDisplays();
 
 // ============================================
-// Strava Import
+// Strava OAuth
 // ============================================
 
+const STRAVA_CLIENT_ID = '204111';
+const STRAVA_REDIRECT_URI = window.location.origin + window.location.pathname;
+const WORKER_URL = 'https://peaks-oauth.jimbo7ron.workers.dev';
+
 const stravaBtn = document.getElementById('strava-btn');
-const stravaModal = document.getElementById('strava-modal');
-const stravaToken = document.getElementById('strava-token');
-const stravaCancel = document.getElementById('strava-cancel');
-const stravaFetch = document.getElementById('strava-fetch');
 const stravaStatus = document.getElementById('strava-status');
-const stravaModalStatus = document.getElementById('strava-modal-status');
 
 // Check for stored token
 const storedToken = localStorage.getItem('strava_token');
@@ -200,47 +199,50 @@ if (storedToken) {
     stravaStatus.className = 'strava-status success';
 }
 
-stravaBtn.addEventListener('click', () => {
-    stravaModal.classList.remove('hidden');
-    stravaToken.value = storedToken || '';
-    stravaToken.focus();
-});
+// Handle OAuth callback - check for code in URL
+const urlParams = new URLSearchParams(window.location.search);
+const authCode = urlParams.get('code');
+if (authCode) {
+    handleOAuthCallback(authCode);
+}
 
-stravaCancel.addEventListener('click', () => {
-    stravaModal.classList.add('hidden');
-    stravaModalStatus.textContent = '';
-});
-
-// Close modal on background click
-stravaModal.addEventListener('click', (e) => {
-    if (e.target === stravaModal) {
-        stravaModal.classList.add('hidden');
-        stravaModalStatus.textContent = '';
-    }
-});
-
-stravaFetch.addEventListener('click', async () => {
-    const token = stravaToken.value.trim();
-    if (!token) {
-        stravaModalStatus.textContent = 'Please enter your access token';
-        stravaModalStatus.className = 'strava-status error';
-        return;
-    }
-
-    stravaFetch.disabled = true;
-    stravaModalStatus.textContent = 'Fetching your segment efforts...';
-    stravaModalStatus.className = 'strava-status loading';
-
+async function handleOAuthCallback(code) {
+    stravaStatus.textContent = 'Connecting to Strava...';
+    stravaStatus.className = 'strava-status loading';
+    
+    // Clean up URL
+    window.history.replaceState({}, document.title, window.location.pathname);
+    
     try {
-        const efforts = await fetchStravaEfforts(token);
+        // Exchange code for token via our worker
+        const response = await fetch(WORKER_URL + '/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code })
+        });
+        
+        const data = await response.json();
+        
+        if (data.error) {
+            throw new Error(data.error);
+        }
+        
+        if (!data.access_token) {
+            throw new Error('No access token received');
+        }
+        
+        // Store the token
+        localStorage.setItem('strava_token', data.access_token);
+        
+        // Fetch segment efforts
+        const efforts = await fetchStravaEfforts(data.access_token);
         
         if (Object.keys(efforts).length === 0) {
-            stravaModalStatus.textContent = 'No efforts found for these climbs. Have you ridden them?';
-            stravaModalStatus.className = 'strava-status error';
-            stravaFetch.disabled = false;
+            stravaStatus.textContent = 'Connected but no efforts found for these climbs';
+            stravaStatus.className = 'strava-status warning';
             return;
         }
-
+        
         // Calculate weighted average climbing power
         const result = calculateWeightedPower(efforts);
         
@@ -248,25 +250,60 @@ stravaFetch.addEventListener('click', async () => {
         climbPowerSlider.value = Math.round(result.weightedPower);
         updateDisplays();
         
-        // Store token for future use
-        localStorage.setItem('strava_token', token);
-        
-        // Close modal and show success
-        stravaModal.classList.add('hidden');
         stravaStatus.innerHTML = `✓ Imported: <strong>${Math.round(result.weightedPower)}W</strong> avg climbing power`;
         stravaStatus.className = 'strava-status success';
         
         // Show breakdown
         showStravaBreakdown(efforts, result);
-
+        
     } catch (error) {
-        console.error('Strava fetch error:', error);
-        stravaModalStatus.textContent = error.message || 'Failed to fetch from Strava';
-        stravaModalStatus.className = 'strava-status error';
+        console.error('OAuth error:', error);
+        stravaStatus.textContent = 'Connection failed: ' + error.message;
+        stravaStatus.className = 'strava-status error';
     }
+}
 
-    stravaFetch.disabled = false;
+stravaBtn.addEventListener('click', () => {
+    // If already connected, fetch fresh data
+    if (storedToken) {
+        fetchWithStoredToken();
+        return;
+    }
+    
+    // Otherwise redirect to Strava OAuth
+    const authUrl = `https://www.strava.com/oauth/authorize?client_id=${STRAVA_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(STRAVA_REDIRECT_URI)}&scope=read,activity:read&approval_prompt=auto`;
+    window.location.href = authUrl;
 });
+
+async function fetchWithStoredToken() {
+    stravaStatus.textContent = 'Fetching your segment efforts...';
+    stravaStatus.className = 'strava-status loading';
+    
+    try {
+        const efforts = await fetchStravaEfforts(storedToken);
+        
+        if (Object.keys(efforts).length === 0) {
+            stravaStatus.textContent = 'No efforts found for these climbs';
+            stravaStatus.className = 'strava-status warning';
+            return;
+        }
+        
+        const result = calculateWeightedPower(efforts);
+        climbPowerSlider.value = Math.round(result.weightedPower);
+        updateDisplays();
+        
+        stravaStatus.innerHTML = `✓ Imported: <strong>${Math.round(result.weightedPower)}W</strong> avg climbing power`;
+        stravaStatus.className = 'strava-status success';
+        
+        showStravaBreakdown(efforts, result);
+    } catch (error) {
+        console.error('Fetch error:', error);
+        // Token might be expired, clear it
+        localStorage.removeItem('strava_token');
+        stravaStatus.textContent = 'Session expired - click to reconnect';
+        stravaStatus.className = 'strava-status error';
+    }
+}
 
 // Use CORS proxy for browser requests (Strava API blocks direct browser access)
 // For production, replace with your own proxy endpoint
