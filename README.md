@@ -10,10 +10,27 @@
 
 ## Features
 
+- **Strava Import** — pull your actual climbing power from past efforts on the three main climbs
 - **Power-based predictions** — input your target climbing and flat power
 - **W/kg display** — see your power-to-weight ratio
 - **Segment breakdown** — predicted times for each section
 - **Validated against real data** — calibrated using 2025 Peaks Challenge results
+
+## Strava Integration
+
+Click **"Import from Strava"** to fetch your segment efforts for:
+- **Tawonga Gap** (Segment ID: 634373)
+- **Mt Hotham** (Segment ID: 610370)
+- **Falls Creek - East Side** aka Back of Falls (Segment ID: 639129)
+
+The calculator weights your power data based on climb difficulty and position in the race:
+- Tawonga: 15% weight (short, fresh legs)
+- Hotham: 45% weight (longest climb, mid-race)
+- Falls: 40% weight (final climb, fatigued)
+
+**Getting your token:** Go to [Strava API Settings](https://www.strava.com/settings/api) → copy "Your Access Token"
+
+*Note: Uses a CORS proxy for browser requests. For production deployment, set up your own proxy endpoint.*
 
 ## How It Works
 
