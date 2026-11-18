@@ -203,16 +203,26 @@ if (storedToken) {
 const urlParams = new URLSearchParams(window.location.search);
 const authCode = urlParams.get('code');
 if (authCode) {
-    handleOAuthCallback(authCode);
+    handleOAuthCallback(authCode, urlParams.get('state'));
 }
 
-async function handleOAuthCallback(code) {
+async function handleOAuthCallback(code, returnedState) {
     stravaStatus.textContent = 'Connecting to Strava...';
     stravaStatus.className = 'strava-status loading';
-    
+
     // Clean up URL
     window.history.replaceState({}, document.title, window.location.pathname);
-    
+
+    // Only accept a login this browser started (stops someone sending you
+    // a link that connects their Strava account instead of yours)
+    const expectedState = sessionStorage.getItem('strava_oauth_state');
+    sessionStorage.removeItem('strava_oauth_state');
+    if (!expectedState || returnedState !== expectedState) {
+        stravaStatus.textContent = 'Connection failed: login did not start here - please try again';
+        stravaStatus.className = 'strava-status error';
+        return;
+    }
+
     try {
         // Exchange code for token via our worker
         const response = await fetch(WORKER_URL + '/token', {
@@ -270,8 +280,11 @@ stravaBtn.addEventListener('click', () => {
         return;
     }
     
-    // Otherwise redirect to Strava OAuth
-    const authUrl = `https://www.strava.com/oauth/authorize?client_id=${STRAVA_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(STRAVA_REDIRECT_URI)}&scope=read,activity:read&approval_prompt=auto`;
+    // Otherwise redirect to Strava OAuth, with a one-time random state
+    // value that the callback must echo back
+    const state = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
+    sessionStorage.setItem('strava_oauth_state', state);
+    const authUrl = `https://www.strava.com/oauth/authorize?client_id=${STRAVA_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(STRAVA_REDIRECT_URI)}&scope=read,activity:read&approval_prompt=auto&state=${state}`;
     window.location.href = authUrl;
 });
 
@@ -305,18 +318,15 @@ async function fetchWithStoredToken() {
     }
 }
 
-// Use CORS proxy for browser requests (Strava API blocks direct browser access)
-// For production, replace with your own proxy endpoint
-const CORS_PROXY = 'https://corsproxy.io/?';
-
+// Strava API calls go through our own worker (Strava blocks direct browser
+// access), so the user's token is only ever sent to us and Strava
 async function fetchStravaEfforts(token) {
     const efforts = {};
-    
+
     for (const [key, segment] of Object.entries(STRAVA_SEGMENTS)) {
         try {
-            const apiUrl = `https://www.strava.com/api/v3/segment_efforts?segment_id=${segment.id}&per_page=10`;
             const response = await fetch(
-                CORS_PROXY + encodeURIComponent(apiUrl),
+                `${WORKER_URL}/api/segment_efforts?segment_id=${segment.id}&per_page=10`,
                 {
                     headers: {
                         'Authorization': `Bearer ${token}`
