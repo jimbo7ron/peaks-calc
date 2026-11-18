@@ -9,7 +9,7 @@ Replace manual token paste with proper OAuth flow.
 
 ## Strava OAuth Credentials
 - Client ID: 204111
-- Client Secret: 8059a20198866fceeec59a528c823d1d5ba77760
+- Client Secret: stored as a Cloudflare Worker secret (`STRAVA_CLIENT_SECRET`), never in the repo
 
 ## Flow
 1. User clicks "Connect Strava" → redirects to Strava authorization URL
